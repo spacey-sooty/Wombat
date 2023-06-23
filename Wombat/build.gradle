@@ -1,7 +1,41 @@
 plugins {
-    id "cpp"
-    id "google-test-test-suite"
-    id "edu.wpi.first.GradleRIO" version "2022.2.1"
+  id 'org.ysb33r.doxygen' version '0.7.0'
+  id 'edu.wpi.first.GradleRIO' version '2023.2.1'
+  id "cpp"
+  id "google-test-test-suite"
+}
+
+allprojects {
+  plugins.withType(edu.wpi.first.toolchain.roborio.RoboRioToolchainPlugin).whenPluginAdded {
+    if (project.hasProperty('no-roborio'))
+      toolchainsPlugin.getByName('roboRio').optional = true
+  }
+
+  plugins.withType(NativeComponentPlugin).whenPluginAdded {
+    project.model {
+      binaries {
+        all {
+          if (it instanceof NativeBinarySpec) {
+            if (project.hasProperty('no-desktop') && targetPlatform.name == edu.wpi.first.toolchain.NativePlatforms.desktop) {
+              it.buildable = false
+            }
+            if (project.hasProperty('no-roborio') && targetPlatform.name == edu.wpi.first.toolchain.NativePlatforms.roborio) {
+              it.buildable = false
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// Makes all projects use the same buildDir, more efficient for "expanding archives"
+subprojects {
+  project.buildDir = rootProject.buildDir
+}
+
+wrapper {
+  gradleVersion = '7.3.3'
 }
 
 // Define my targets (RoboRIO) and artifacts (deployable files)
@@ -36,7 +70,7 @@ deploy {
 def deployArtifact = deploy.targets.roborio.artifacts.frcCpp
 
 // Set this to true to enable desktop support.
-def includeDesktopSupport = false
+def includeDesktopSupport = true
 
 // Set to true to run simulation in debug mode
 wpi.cpp.debugSimulation = false
@@ -64,6 +98,10 @@ model {
                 }
             }
 
+            binaries.all {
+              lib project: ':wombat', library: 'Wombat', linkage: 'static'
+            }
+
             // Set deploy task to deploy this component
             deployArtifact.component = it
 
@@ -86,6 +124,10 @@ model {
                     srcDir 'src/test/cpp'
                     include '**/*.cpp'
                 }
+            }
+
+            binaries.all {
+              lib project: ':wombat', library: 'Wombat', linkage: 'static'
             }
 
             // Enable run tasks for this component
